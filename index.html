@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Unity WebGL Game Recording</title>
+    <style>
+      body { margin: 0; }
+      canvas { display: block; }
+      #controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 2;
+      }
+      button {
+        margin: 5px;
+        padding: 10px;
+        font-size: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Unity WebGL container NEW -->
+    <div id="unity-container" class="unity-desktop">
+      <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+      </div>
+      <div id="unity-warning"></div>
+      <div id="unity-footer">
+        <div id="unity-logo-title-footer"></div>
+        <div id="unity-fullscreen-button"></div>
+        <div id="unity-build-title">Your Unity Build Title</div>
+      </div>
+    </div>
+
+    <!-- Recording Controls -->
+    <div id="controls">
+      <button id="startBtn">Start Recording</button>
+      <button id="stopBtn" disabled>Stop Recording</button>
+    </div>
+
+    <!-- Unity Loader Script -->
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+
+      // Display banner messages if needed.
+      function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        if (type === 'error') {
+          div.style.background = 'red';
+          div.style.padding = '10px';
+        } else if (type === 'warning') {
+          div.style.background = 'yellow';
+          div.style.padding = '10px';
+          setTimeout(function () {
+            warningBanner.removeChild(div);
+          }, 5000);
+        }
+        warningBanner.appendChild(div);
+      }
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/YourBuild.loader.js";  // Update with your actual loader filename
+      var config = {
+        dataUrl: buildUrl + "/YourBuild.data",          // Update with your actual data file
+        frameworkUrl: buildUrl + "/YourBuild.framework.js", // Update with your actual framework file
+        codeUrl: buildUrl + "/YourBuild.wasm",            // Update with your actual wasm file
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "Your Company",
+        productName: "Your Product",
+        productVersion: "1.0",
+        showBanner: unityShowBanner,
+      };
+
+      // Adjust canvas size for mobile/desktop if needed
+      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        var meta = document.createElement('meta');
+        meta.name = 'viewport';
+        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no';
+        document.head.appendChild(meta);
+        canvas.className = "unity-mobile";
+      } else {
+        canvas.style.width = "960px";
+        canvas.style.height = "600px";
+      }
+
+      document.querySelector("#unity-loading-bar").style.display = "block";
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onload = () => {
+        createUnityInstance(canvas, config, (progress) => {
+          document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
+        }).then((unityInstance) => {
+          document.querySelector("#unity-loading-bar").style.display = "none";
+          document.querySelector("#unity-fullscreen-button").onclick = () => {
+            unityInstance.SetFullscreen(1);
+          };
+        }).catch((message) => {
+          alert(message);
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+
+    <!-- Recording Script -->
+    <script>
+      // Get references to the recording control buttons.
+      const startBtn = document.getElementById('startBtn');
+      const stopBtn = document.getElementById('stopBtn');
+
+      let mediaRecorder;
+      let recordedChunks = [];
+
+      // Start recording when "Start Recording" is clicked.
+      startBtn.addEventListener('click', () => {
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+
+        // Capture the Unity canvas stream at 30 FPS.
+        const unityCanvas = document.getElementById('unity-canvas');
+        const stream = unityCanvas.captureStream(30);
+
+        // Create a MediaRecorder with the canvas stream.
+        mediaRecorder = new MediaRecorder(stream);
+        recordedChunks = [];
+
+        mediaRecorder.ondataavailable = event => {
+          if (event.data.size > 0) {
+            recordedChunks.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = () => {
+          // Create a Blob from the recorded video chunks.
+          const blob = new Blob(recordedChunks, { type: 'video/webm' });
+          // Create a URL for the Blob and trigger a download.
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = 'unity_gameplay.webm';
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+        };
+
+        mediaRecorder.start();
+      });
+
+      // Stop recording when "Stop Recording" is clicked.
+      stopBtn.addEventListener('click', () => {
+        mediaRecorder.stop();
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      });
+    </script>
+  </body>
+</html>
+
